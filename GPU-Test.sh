@@ -1,4 +1,7 @@
-#/bin/bash
+#!/bin/bash
+# gpu-test.sh
+# A script to set up and run a GPU stress test on Ubuntu systems with NVIDIA GPUs.
+
 sudo -v
 if [ "$EUID" -ne 0 ]; then
     echo "Re-running script as root..."
@@ -11,7 +14,7 @@ GPU_BURN_SECONDS=90
 
 ## install pre-requisites
 echo "Installing prerequisites..."
-apt update && apt install -y curl ca-certificates python3-pip git&
+apt update && apt install -y curl ca-certificates python3-pip git tmux&
 wait
 
 ## verify runlevel 3 is default(multi-user.target)
