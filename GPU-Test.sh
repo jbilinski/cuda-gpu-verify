@@ -80,6 +80,18 @@ gput-install() {
     cd ~
 }
 
+#TODO add check for nvidia-smi and coolgpus commands
+gput-checkdependencies() {
+    echo "Checking for required dependencies..."
+    local dependencies=(docker nvidia-smi coolgpus)
+    for cmd in "${dependencies[@]}"; do
+        if ! command -v "$cmd" &> /dev/null; then
+            echo "Error: $cmd is not installed. Please run the install step first."
+            exit 1
+        fi
+    done
+    echo "All required dependencies are installed."
+}
 
 gput-test() {
     ## verify runlevel 3 is default(multi-user.target)
