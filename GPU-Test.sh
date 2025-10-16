@@ -10,6 +10,8 @@ fi
 
 NVIDIA_DRIVER_PACKAGE="nvidia-driver-535-server"
 GPU_BURN_SECONDS=90
+SMI_LOG_PATH=$HOME
+
 
 
 ## install pre-requisites
@@ -79,26 +81,35 @@ pip install coolgpus
 ## install gpu-burn
 echo "Installing GPU Burn..."
 #snap install gpu-burn --edge
-git clone https://github.com/wilicc/gpu-burn &
-wait
-cd gpu-burn
+cd ~/cuda-gpu-verify/gpu-burn/
 sudo docker build -t gpu_burn . &
 wait
 cd ~
 
 
 # prepare for tests
-systemctl isolate multi-user.target
+systemctl isolate multi-user.target # Kill graphical session if any prior to coolgpus and gpu-burn
 systemctl restart docker
 
-$(which coolgpus) --kill --speed 99 99 --kill &
-sleep 10
+setsid "$(command -v coolgpus)" --kill --speed 99 99 --kill >/dev/null 2>&1 < /dev/null &
+echo "Waiting 16 seconds for coolgpus to set persistence mode and clocks..."
+for i in $(seq 16 -1 1); do
+    printf "\rWaiting %2d seconds for coolgpus... " "$i"
+    sleep 1
+done
+printf "\rcoolgpus fan settings applied               \n"
 
 
 ## run gpu-burn test
+clear
 echo "Running GPU Burn test for ${GPU_BURN_SECONDS} seconds..."
+sleep 2
 #the following need to run in tmux windows
 tmux new-session -d -s gpu_test "docker run --rm --gpus all gpu_burn ./gpu_burn -d ${GPU_BURN_SECONDS}"
-tmux split-window -h -t gpu_test "watch -n 1 nvidia-smi"
+tmux split-window -h -t gpu_test "nvidia-smi -l 1"
+tmux background -t gpu_test "nvidia-smi -l 5 -f ${SMI_LOG_PATH%/}/nvidia-smi-$(date +%Y%m%d-%H%M%S).log &"
+(sleep $((GPU_BURN_SECONDS + 60)); tmux kill-session -t gpu_test) &
 tmux attach-session -t gpu_test
+echo "GPU Burn test completed. Status in nvidia-smi log file in ${SMI_LOG_PATH} for details."
+
 
