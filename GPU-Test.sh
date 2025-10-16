@@ -110,6 +110,6 @@ tmux split-window -h -t gpu_test "nvidia-smi -l 1"
 tmux background -t gpu_test "nvidia-smi -l 5 -f ${SMI_LOG_PATH%/}/nvidia-smi-$(date +%Y%m%d-%H%M%S).log &"
 (sleep $((GPU_BURN_SECONDS + 60)); tmux kill-session -t gpu_test) &
 tmux attach-session -t gpu_test
-echo "GPU Burn test completed. Status in nvidia-smi log file in ${SMI_LOG_PATH} for details."
+echo "GPU Burn test completed. Status in nvidia-smi log file under ${SMI_LOG_PATH}."
 
 
