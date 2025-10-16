@@ -10,7 +10,7 @@ fi
 
 NVIDIA_DRIVER_PACKAGE="nvidia-driver-535-server"
 GPU_BURN_SECONDS=90
-SMI_LOG_PATH=$HOME
+SMI_LOG_PATH=~
 
 
 gput-prep() {
@@ -74,8 +74,11 @@ gput-install() {
     ## install gpu-burn
     echo "Installing GPU Burn..."
     #snap install gpu-burn --edge
+    cd ~/cuda-gpu-verify
+    git submodule update --init --recursive #pull the gpu-burn repo
+    chmod +x ~/cuda-gpu-verify/GPU-Test.sh #make sure the script stays executable
     cd ~/cuda-gpu-verify/gpu-burn/
-    sudo docker build -t gpu_burn . &
+    docker build -t gpu_burn . &
     wait
     cd ~
 }
@@ -117,9 +120,10 @@ gput-test() {
     #the following need to run in tmux windows
     tmux new-session -d -s gpu_test "docker run --rm --gpus all gpu_burn ./gpu_burn -d ${GPU_BURN_SECONDS}"
     tmux split-window -h -t gpu_test "nvidia-smi -l 1"
-    tmux background -t gpu_test "nvidia-smi -l 5 -f ${SMI_LOG_PATH%/}/nvidia-smi-$(date +%Y%m%d-%H%M%S).log &"
-    (sleep $((GPU_BURN_SECONDS + 60)); tmux kill-session -t gpu_test) &
+    # detached tmux window named "smi" that writes nvidia-smi to a timestamped log
+    tmux new-window -t gpu_test -n smi -d "nvidia-smi -l 5 -f ${SMI_LOG_PATH%/}/nvidia-smi-$(date +%Y%m%d-%H%M%S).log"
     tmux attach-session -t gpu_test
+    (sleep $((GPU_BURN_SECONDS + 60)); tmux kill-session -t gpu_test) &
     echo "GPU Burn test completed. Status in nvidia-smi log file under ${SMI_LOG_PATH}."
 }
 
