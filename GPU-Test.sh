@@ -4,7 +4,7 @@
 
 sudo -v
 if [ "$EUID" -ne 0 ]; then
-    echo "Re-running script as root..."
+    printf "Re-running script as root...\n"
     exec sudo bash "$0" "$@"
 fi
 
@@ -21,25 +21,25 @@ fi
 
 gput-prep() {
     ## install pre-requisites
-    echo "Installing prerequisites..."
+    printf "Installing prerequisites...\n"
     apt update && apt install -y curl ca-certificates python3-pip git tmux & wait
 
     ## add nvidia repo
-    echo "Adding NVIDIA package repositories..."
+    printf "Adding NVIDIA package repositories...\n"
     . /etc/os-release #source the file to get VERSION_ID
     UBUNTU_VERSION=$(echo "$VERSION_ID" | tr -d '.')
     curl -s -L "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu${UBUNTU_VERSION}/x86_64/cuda-keyring_1.1-1_all.deb" -o cuda-keyring.deb
     dpkg -i cuda-keyring.deb & wait
 
     ## Add docker repo
-    echo "Adding Docker package repositories..."
+    printf "Adding Docker package repositories...\n"
     install -m 0755 -d /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc & wait
     chmod a+r /etc/apt/keyrings/docker.asc
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null & wait
 
     ## update package lists
-    echo "Updating package lists..."
+    printf "Updating package lists...\n"
     apt update && apt upgrade -y & wait
 }
 
@@ -47,38 +47,38 @@ gput-prep() {
 
 gput-install() {
     ## Uninstall old docker versions
-    echo "Removing old Docker versions, if any..."
+    printf "Removing old Docker versions, if any...\n"
     snap remove --purge docker
     apt remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc &
     wait
 
     ## Install docker
-    echo "Installing Docker..."
+    printf "Installing Docker...\n"
     apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin &
     wait
 
     ## remove any existing nvidia drivers
-    echo "Removing existing NVIDIA drivers and modules, if any..."
+    printf "Removing existing NVIDIA drivers and modules, if any...\n"
     apt remove --purge '^nvidia-.*' -y &
     wait
-    echo "blacklist nouveau" | tee /etc/modprobe.d/blacklist-nouveau.conf
-    echo "options nouveau modeset=0" | tee -a /etc/modprobe.d/blacklist-nouveau.conf
+    printf "blacklist nouveau" | tee /etc/modprobe.d/blacklist-nouveau.conf
+    printf  "options nouveau modeset=0" | tee -a /etc/modprobe.d/blacklist-nouveau.conf
     update-initramfs -u &
     wait
 
     ## install nvidia packages
-    echo "Installing NVIDIA driver and related packages..."
+    printf "Installing NVIDIA driver and related packages...\n"
     apt -y install ${NVIDIA_DRIVER_PACKAGE} nvidia-settings nvidia-container-toolkit &
     wait
     nvidia-ctk runtime configure --runtime=docker &
     wait
 
     ## install coolgpus
-    echo "Installing coolgpus from PyPI..."
+    printf "Installing coolgpus from PyPI...\n"
     pip install coolgpus
 
     ## install gpu-burn
-    echo "Installing GPU Burn..."
+    printf "Installing GPU Burn...\n"
     #snap install gpu-burn --edge
     cd ~/cuda-gpu-verify
     git submodule update --init --recursive #pull the gpu-burn repo
@@ -91,15 +91,15 @@ gput-install() {
 
 #TODO add check for nvidia-smi and coolgpus commands
 gput-checkdependencies() {
-    echo "Checking for required dependencies..."
+    printf "Checking for required dependencies...\n"
     local dependencies=(docker nvidia-smi coolgpus)
     for cmd in "${dependencies[@]}"; do
         if ! command -v "$cmd" &> /dev/null; then
-            echo "Error: $cmd is not installed. Please run the install step first."
+            printf "Error: $cmd is not installed. Please run the install step first.\n"
             exit 1
         fi
     done
-    echo "All required dependencies are installed."
+    printf "All required dependencies are installed."
 }
 
 gput-test() {
@@ -120,13 +120,14 @@ gput-test() {
         sleep 1
     done
     printf "\rcoolgpus fan settings applied               \n"
+    printf "Logging initial GPU states...\n"
     nvidia-smi -q | grep -A 16 -w "PCI" > "${SMI_LOG_PATH%/}/nvidia-pci-states-$(date +%Y%m%d-%H%M%S).log" &
     nvidia-smi -q | grep -A 1 -w "Fan Speed" > "${SMI_LOG_PATH%/}/nvidia-perf-states-$(date +%Y%m%d-%H%M%S).log" &
     wait
 
     ## run gpu-burn test
     clear
-    echo "Running GPU Burn test for ${GPU_BURN_SECONDS} seconds..."
+    printf "Running GPU Burn test for ${GPU_BURN_SECONDS} seconds...\n"
     sleep 2
     #the following need to run in tmux windows
     tmux new-session -d -s gpu_test "docker run --rm --gpus all gpu_burn ./gpu_burn -d ${GPU_BURN_SECONDS}"
@@ -135,7 +136,8 @@ gput-test() {
     tmux new-window -t gpu_test -n smi -d "nvidia-smi dmon -d 8 -f ${SMI_LOG_PATH%/}/nvidia-smi-$(date +%Y%m%d-%H%M%S).log"
     (sleep $((GPU_BURN_SECONDS + 30)); tmux kill-session -t gpu_test) &
     tmux attach-session -t gpu_test
-    echo "GPU Burn test completed. Status in nvidia-smi log file under ${SMI_LOG_PATH}."
+    printf "GPU Burn test completed. Status in nvidia-smi log file under ${SMI_LOG_PATH}.\n"
+    printf "Logging final GPU states...\n"
     nvidia-smi -q | grep -A 16 -w "PCI" > "${SMI_LOG_PATH%/}/nvidia-pci-states-$(date +%Y%m%d-%H%M%S).log" &
     nvidia-smi -q | grep -A 1 -w "Fan Speed" > "${SMI_LOG_PATH%/}/nvidia-perf-states-$(date +%Y%m%d-%H%M%S).log" &
 }
