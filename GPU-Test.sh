@@ -160,7 +160,7 @@ gput-test() {
     nvidia-smi -r
 
     log_info "Starting coolgpus with 99% fan speed"
-    setsid "$(command -v coolgpus)" --kill --speed 99 99 --kill >/dev/null 2>&1 < /dev/null &
+    setsid "$(command -v coolgpus)" --kill --speed 99 99 --kill >/tmp/coolgpus.log 2>&1 < /dev/null &
     for i in $(seq 16 -1 1); do
         printf "\rWaiting %2d seconds for coolgpus... " "$i"
         sleep 1
@@ -180,7 +180,7 @@ gput-test() {
     #the following need to run in tmux windows
     tmux new-session -d -s gpu_test "docker run --rm --gpus all gpu_burn ./gpu_burn -d ${GPU_BURN_SECONDS}"
     tmux split-window -h -t gpu_test "watch -b -c -n ${SMI_DISPLAY_REFRESH} nvidia-smi"
-    tmux split-window -v -t gpu_test:0.0 "tail -f /var/log/syslog | grep -i coolgpus || echo 'Monitoring coolgpus activity...'; sleep ${GPU_BURN_SECONDS}"
+    tmux split-window -v -t gpu_test:0.0 "echo '--- coolgpus output ---' ; tail -f /tmp/coolgpus.log"
     tmux new-window -t gpu_test -n smi -d "while true; do echo '--- nvidia-smi dmon output at $(date) ---' >> '$LOG_FILE'; nvidia-smi dmon -d 8 -c 1 >> '$LOG_FILE' 2>&1; sleep 8; done"
     (sleep $((GPU_BURN_SECONDS + 30)); tmux kill-session -t gpu_test) &
     tmux attach-session -t gpu_test
