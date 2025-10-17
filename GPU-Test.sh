@@ -10,14 +10,57 @@ fi
 
 NVIDIA_DRIVER_PACKAGE="nvidia-driver-535-server"
 GPU_BURN_SECONDS=90
-# Prefer SUDO_USER; fall back to logname, then to /root.
-orig_user="${SUDO_USER:-$(logname 2>/dev/null || true)}"
-if [ -n "$orig_user" ] && getent passwd "$orig_user" > /dev/null 2>&1; then
-    SMI_LOG_PATH="$(getent passwd "$orig_user" | cut -d: -f6)"
-else
-    SMI_LOG_PATH="/root"
-fi
+SMI_LOG_PATH="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
 
+
+# Common log file with timestamp
+LOG_FILE="${SMI_LOG_PATH%/}/gpu-test.log"
+
+# Common logging function
+log_to_file() {
+    local log_type="$1"
+    shift
+    local message="$*"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Log to file with timestamp and type
+    echo "[$timestamp] [$log_type] $message" >> "$LOG_FILE"
+    
+    # Also output to console for important messages
+    case "$log_type" in
+        "INFO"|"ERROR"|"WARNING")
+            echo "[$log_type] $message"
+            ;;
+    esac
+}
+
+# Convenience functions
+log_info() { log_to_file "INFO" "$@"; }
+log_error() { log_to_file "ERROR" "$@"; }
+log_warning() { log_to_file "WARNING" "$@"; }
+log_debug() { log_to_file "DEBUG" "$@"; }
+
+# Function to log command output to file
+log_command_output() {
+    local command_description="$1"
+    shift
+    local command="$*"
+    
+    log_to_file "CMD_START" "Executing: $command_description"
+    echo "[$command_description - $(date '+%Y-%m-%d %H:%M:%S')]" >> "$LOG_FILE"
+    echo "Command: $command" >> "$LOG_FILE"
+    echo "--- Output Start ---" >> "$LOG_FILE"
+    
+    # Execute command and capture both stdout and stderr
+    if eval "$command" >> "$LOG_FILE" 2>&1; then
+        log_to_file "CMD_SUCCESS" "$command_description completed successfully"
+    else
+        log_to_file "CMD_ERROR" "$command_description failed with exit code $?"
+    fi
+    
+    echo "--- Output End ---" >> "$LOG_FILE"
+    echo "" >> "$LOG_FILE"
+}
 
 gput-prep() {
     ## install pre-requisites
@@ -103,6 +146,8 @@ gput-checkdependencies() {
 }
 
 gput-test() {
+    log_info "Starting GPU test sequence"
+    
     ## verify runlevel 3 is default(multi-user.target)
     systemctl set-default multi-user.target
 
@@ -113,35 +158,41 @@ gput-test() {
     # reset GPUs
     nvidia-smi -r
 
-
+    log_info "Starting coolgpus with 99% fan speed"
     setsid "$(command -v coolgpus)" --kill --speed 99 99 --kill >/dev/null 2>&1 < /dev/null &
     for i in $(seq 16 -1 1); do
         printf "\rWaiting %2d seconds for coolgpus... " "$i"
         sleep 1
     done
     printf "\rcoolgpus fan settings applied               \n"
-    printf "\rLogging initial GPU states...\n"
-    nvidia-smi -q | grep -A 16 -w "PCI" > "${SMI_LOG_PATH%/}/nvidia-pci-states-$(date +%Y%m%d-%H%M%S).log" &
-    nvidia-smi -q | grep -A 1 -w "Fan Speed" > "${SMI_LOG_PATH%/}/nvidia-perf-states-$(date +%Y%m%d-%H%M%S).log" &
-    wait
+    
+    log_info "Logging initial GPU states"
+    log_command_output "Initial GPU PCI States" "nvidia-smi -q | grep -A 16 -w 'PCI'"
+    log_command_output "Initial GPU Fan States" "nvidia-smi -q | grep -A 1 -w 'Fan Speed'"
 
     ## run gpu-burn test
     clear
     printf "Running GPU Burn test for ${GPU_BURN_SECONDS} seconds...\n"
+    log_info "Starting GPU Burn test for ${GPU_BURN_SECONDS} seconds"
     sleep 2
+    
     #the following need to run in tmux windows
     tmux new-session -d -s gpu_test "docker run --rm --gpus all gpu_burn ./gpu_burn -d ${GPU_BURN_SECONDS}"
     tmux split-window -h -t gpu_test "watch -b -c -n 1 nvidia-smi -l 2"
-    # detached tmux window named "smi" that writes nvidia-smi to a timestamped log
-    tmux new-window -t gpu_test -n smi -d "nvidia-smi dmon -d 8 -f ${SMI_LOG_PATH%/}/nvidia-smi-$(date +%Y%m%d-%H%M%S).log"
+    # detached tmux window that logs nvidia-smi to our common log file
+    tmux new-window -t gpu_test -n smi -d "while true; do echo '--- nvidia-smi dmon output at $(date) ---' >> '$LOG_FILE'; nvidia-smi dmon -d 8 -c 1 >> '$LOG_FILE' 2>&1; sleep 8; done"
     (sleep $((GPU_BURN_SECONDS + 30)); tmux kill-session -t gpu_test) &
     tmux attach-session -t gpu_test
-    printf "GPU Burn test completed. Status in nvidia-smi log file under ${SMI_LOG_PATH}.\n"
-    printf "Logging final GPU states...\n"
-    nvidia-smi -q | grep -A 16 -w "PCI" > "${SMI_LOG_PATH%/}/nvidia-pci-states-$(date +%Y%m%d-%H%M%S).log" &
-    nvidia-smi -q | grep -A 1 -w "Fan Speed" > "${SMI_LOG_PATH%/}/nvidia-perf-states-$(date +%Y%m%d-%H%M%S).log" &
+    
+    log_info "GPU Burn test completed"
+    printf "GPU Burn test completed. All logs saved to: ${LOG_FILE}\n"
+    
+    log_info "Logging final GPU states"
+    log_command_output "Final GPU PCI States" "nvidia-smi -q | grep -A 16 -w 'PCI'"
+    log_command_output "Final GPU Fan States" "nvidia-smi -q | grep -A 1 -w 'Fan Speed'"
+    
+    log_info "GPU test sequence completed. Log file: ${LOG_FILE}"
 }
-
 
 show_usage() {
     cat <<EOF
