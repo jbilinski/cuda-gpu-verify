@@ -91,15 +91,15 @@ gput-install() {
 
 #TODO add check for nvidia-smi and coolgpus commands
 gput-checkdependencies() {
-    printf "Checking for required dependencies...\n"
+    printf "\rChecking for required dependencies...\n"
     local dependencies=(docker nvidia-smi coolgpus)
     for cmd in "${dependencies[@]}"; do
         if ! command -v "$cmd" &> /dev/null; then
-            printf "Error: $cmd is not installed. Please run the install step first.\n"
+            printf "\rError: $cmd is not installed. Please run the install step first.\n"
             exit 1
         fi
     done
-    printf "All required dependencies are installed."
+    printf "\rAll required dependencies are installed."
 }
 
 gput-test() {
@@ -120,7 +120,7 @@ gput-test() {
         sleep 1
     done
     printf "\rcoolgpus fan settings applied               \n"
-    printf "Logging initial GPU states...\n"
+    printf "\rLogging initial GPU states...\n"
     nvidia-smi -q | grep -A 16 -w "PCI" > "${SMI_LOG_PATH%/}/nvidia-pci-states-$(date +%Y%m%d-%H%M%S).log" &
     nvidia-smi -q | grep -A 1 -w "Fan Speed" > "${SMI_LOG_PATH%/}/nvidia-perf-states-$(date +%Y%m%d-%H%M%S).log" &
     wait
