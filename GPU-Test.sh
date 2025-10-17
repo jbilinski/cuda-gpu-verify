@@ -194,12 +194,9 @@ gput-test() {
     tmux attach-session -t gpu_test
     
     log_info "GPU Burn test completed"
-    printf "GPU Burn test completed. All logs saved to: ${LOG_FILE}\n"
-    
     log_info "Logging final GPU states"
     log_command_output "Final GPU PCI States" "nvidia-smi -q | grep -A 16 -w 'PCI'"
     log_command_output "Final GPU Fan States" "nvidia-smi -q | grep -A 1 -w 'Fan Speed'"
-    
     log_info "GPU test sequence completed. Log file: ${LOG_FILE}"
 }
 
