@@ -159,6 +159,11 @@ gput-test() {
     # reset GPUs
     nvidia-smi -r
 
+    # kill and existing xserver sessions
+    log_info "Killing any existing X server sessions"
+    pkill Xorg || true
+    wait   
+
     log_info "Starting coolgpus with 99% fan speed"
     rm -f /tmp/coolgpus.log
     setsid "$(command -v coolgpus)" --kill --speed 99 99 --kill >/tmp/coolgpus.log 2>&1 < /dev/null &
