@@ -180,6 +180,7 @@ gput-test() {
     #the following need to run in tmux windows
     tmux new-session -d -s gpu_test "docker run --rm --gpus all gpu_burn ./gpu_burn -d ${GPU_BURN_SECONDS}"
     tmux split-window -h -t gpu_test "watch -b -c -n ${SMI_DISPLAY_REFRESH} nvidia-smi"
+    tmux split-window -v -t gpu_test:0.0 "tail -f /var/log/syslog | grep -i coolgpus || echo 'Monitoring coolgpus activity...'; sleep ${GPU_BURN_SECONDS}"
     # detached tmux window that logs nvidia-smi to our common log file
     tmux new-window -t gpu_test -n smi -d "while true; do echo '--- nvidia-smi dmon output at $(date) ---' >> '$LOG_FILE'; nvidia-smi dmon -d 8 -c 1 >> '$LOG_FILE' 2>&1; sleep 8; done"
     (sleep $((GPU_BURN_SECONDS + 30)); tmux kill-session -t gpu_test) &
