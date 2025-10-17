@@ -161,7 +161,9 @@ gput-test() {
 
     # kill and existing xserver sessions
     log_info "Killing any existing X server sessions"
-    pkill Xorg || true
+    log_info "Forcefully killing any X sessions (Xorg, Xwayland, X) and common display managers"
+    pkill -9 Xorg || true
+    lsof -t /tmp/.X11-unix/* 2>/dev/null | xargs -r kill -9 || true
     wait   
 
     log_info "Starting coolgpus with 99% fan speed"
