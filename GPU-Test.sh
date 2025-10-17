@@ -160,6 +160,7 @@ gput-test() {
     nvidia-smi -r
 
     log_info "Starting coolgpus with 99% fan speed"
+    rm -f /tmp/coolgpus.log
     setsid "$(command -v coolgpus)" --kill --speed 99 99 --kill >/tmp/coolgpus.log 2>&1 < /dev/null &
     for i in $(seq 16 -1 1); do
         printf "\rWaiting %2d seconds for coolgpus... " "$i"
