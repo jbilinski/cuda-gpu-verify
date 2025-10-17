@@ -127,7 +127,7 @@ gput-test() {
     tmux split-window -h -t gpu_test "nvidia-smi -l 1"
     # detached tmux window named "smi" that writes nvidia-smi to a timestamped log
     tmux new-window -t gpu_test -n smi -d "nvidia-smi dmon -d 8 -f ${SMI_LOG_PATH%/}/nvidia-smi-$(date +%Y%m%d-%H%M%S).log"
-    (sleep $((GPU_BURN_SECONDS + 60)); tmux kill-session -t gpu_test) &
+    (sleep $((GPU_BURN_SECONDS + 30)); tmux kill-session -t gpu_test) &
     tmux attach-session -t gpu_test
     echo "GPU Burn test completed. Status in nvidia-smi log file under ${SMI_LOG_PATH}."
     nvidia-smi -q | grep -A 16 -w "PCI" > "${SMI_LOG_PATH%/}/nvidia-pci-states-$(date +%Y%m%d-%H%M%S).log" &
