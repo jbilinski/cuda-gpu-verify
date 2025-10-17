@@ -103,15 +103,20 @@ gput-test() {
     # prepare for tests
     systemctl isolate multi-user.target # Kill graphical session if any prior to coolgpus and gpu-burn
     systemctl restart docker
+    
+    # reset GPUs
+    nvidia-smi -r
+
 
     setsid "$(command -v coolgpus)" --kill --speed 99 99 --kill >/dev/null 2>&1 < /dev/null &
-    echo "Waiting 16 seconds for coolgpus to set persistence mode and clocks..."
     for i in $(seq 16 -1 1); do
         printf "\rWaiting %2d seconds for coolgpus... " "$i"
         sleep 1
     done
     printf "\rcoolgpus fan settings applied               \n"
-
+    nvidia-smi -q | grep -A 16 -w "PCI" > "${SMI_LOG_PATH%/}/nvidia-pci-states-$(date +%Y%m%d-%H%M%S).log" &
+    nvidia-smi -q | grep -A 1 -w "Fan Speed" > "${SMI_LOG_PATH%/}/nvidia-perf-states-$(date +%Y%m%d-%H%M%S).log" &
+    wait
 
     ## run gpu-burn test
     clear
@@ -121,10 +126,12 @@ gput-test() {
     tmux new-session -d -s gpu_test "docker run --rm --gpus all gpu_burn ./gpu_burn -d ${GPU_BURN_SECONDS}"
     tmux split-window -h -t gpu_test "nvidia-smi -l 1"
     # detached tmux window named "smi" that writes nvidia-smi to a timestamped log
-    tmux new-window -t gpu_test -n smi -d "nvidia-smi -l 5 -f ${SMI_LOG_PATH%/}/nvidia-smi-$(date +%Y%m%d-%H%M%S).log"
-    tmux attach-session -t gpu_test
+    tmux new-window -t gpu_test -n smi -d "nvidia-smi dmon -d 8 -f ${SMI_LOG_PATH%/}/nvidia-smi-$(date +%Y%m%d-%H%M%S).log"
     (sleep $((GPU_BURN_SECONDS + 60)); tmux kill-session -t gpu_test) &
+    tmux attach-session -t gpu_test
     echo "GPU Burn test completed. Status in nvidia-smi log file under ${SMI_LOG_PATH}."
+    nvidia-smi -q | grep -A 16 -w "PCI" > "${SMI_LOG_PATH%/}/nvidia-pci-states-$(date +%Y%m%d-%H%M%S).log" &
+    nvidia-smi -q | grep -A 1 -w "Fan Speed" > "${SMI_LOG_PATH%/}/nvidia-perf-states-$(date +%Y%m%d-%H%M%S).log" &
 }
 
 
