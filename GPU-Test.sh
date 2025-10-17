@@ -10,7 +10,13 @@ fi
 
 NVIDIA_DRIVER_PACKAGE="nvidia-driver-535-server"
 GPU_BURN_SECONDS=90
-SMI_LOG_PATH=~
+# Prefer SUDO_USER; fall back to logname, then to /root.
+orig_user="${SUDO_USER:-$(logname 2>/dev/null || true)}"
+if [ -n "$orig_user" ] && getent passwd "$orig_user" > /dev/null 2>&1; then
+    SMI_LOG_PATH="$(getent passwd "$orig_user" | cut -d: -f6)"
+else
+    SMI_LOG_PATH="/root"
+fi
 
 
 gput-prep() {
@@ -124,7 +130,7 @@ gput-test() {
     sleep 2
     #the following need to run in tmux windows
     tmux new-session -d -s gpu_test "docker run --rm --gpus all gpu_burn ./gpu_burn -d ${GPU_BURN_SECONDS}"
-    tmux split-window -h -t gpu_test "nvidia-smi -l 1"
+    tmux split-window -h -t gpu_test "watch -b -c -n 1 nvidia-smi -l 2"
     # detached tmux window named "smi" that writes nvidia-smi to a timestamped log
     tmux new-window -t gpu_test -n smi -d "nvidia-smi dmon -d 8 -f ${SMI_LOG_PATH%/}/nvidia-smi-$(date +%Y%m%d-%H%M%S).log"
     (sleep $((GPU_BURN_SECONDS + 30)); tmux kill-session -t gpu_test) &
