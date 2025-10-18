@@ -124,10 +124,10 @@ gput-install() {
     ## install gpu-burn
     printf "Installing GPU Burn...\n"
     #snap install gpu-burn --edge
-    cd ~/cuda-gpu-verify
+    cd $SMI_LOG_PATH/cuda-gpu-verify
     git submodule update --init --recursive #pull the gpu-burn repo
-    chmod +x ~/cuda-gpu-verify/GPU-Test.sh #make sure the script stays executable
-    cd ~/cuda-gpu-verify/gpu-burn/
+    chmod +x ./GPU-Test.sh #make sure the script stays executable
+    cd $SMI_LOG_PATH/cuda-gpu-verify/gpu-burn/
     docker build -t gpu_burn . &
     wait
     cd ~
