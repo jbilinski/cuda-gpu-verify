@@ -134,16 +134,18 @@ gput-install() {
 }
 
 #TODO add check for nvidia-smi and coolgpus commands
-gput-checkdependencies() {
-    printf "\rChecking for required dependencies...\n"
+gput-checkdeps() {
+    log_info "Checking for required dependencies..."
     local dependencies=(docker nvidia-smi coolgpus)
     for cmd in "${dependencies[@]}"; do
         if ! command -v "$cmd" &> /dev/null; then
-            printf "\rError: $cmd is not installed. Please run the install step first.\n"
+            log_error "$cmd is not installed. Please run the install step first."
+            log_info "> ./GPU-Test.sh install"
             exit 1
         fi
     done
-    printf "\rAll required dependencies are installed."
+    log_info "All required dependencies are installed."
+    gput-test
 }
 
 gput-test() {
@@ -224,7 +226,7 @@ if [ $# -ge 1 ]; then
             exit 0
             ;;
         test)
-            gput-test
+            gput-checkdeps
             exit 0
             ;;
         all)
@@ -243,6 +245,11 @@ if [ $# -ge 1 ]; then
             exit 2
             ;;
     esac
+else
+    echo "No command specified. Defaulting to 'test'..."
+    gput-checkdeps
+    exit 0
+fi
 fi
 
 
